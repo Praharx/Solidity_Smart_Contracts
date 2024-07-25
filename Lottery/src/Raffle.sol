@@ -19,7 +19,6 @@
 // private
 // view & pure functions
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
@@ -32,18 +31,18 @@ import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/dev/vrf/libraries/V
  * @notice This contract aims to create a sample raffle
  * @dev Implements Chainlink VRFv2.5
  */
-
-contract Raffle is VRFConsumerBaseV2Plus{
+contract Raffle is VRFConsumerBaseV2Plus {
     //Errors
     error Raffle__NotEnoughEthSent();
     error Raffle__WinnerTransactionFailed();
     error Raffle__LotteryEntryClosed();
-    error Raffle__upkeepNotNeeded(uint256 balance,uint256 playersLength,uint256 s_raffleState);
+    error Raffle__upkeepNotNeeded(uint256 balance, uint256 playersLength, uint256 s_raffleState);
 
     /*Type declarations */
-    enum RaffleState{
-        OPEN,  //0
+    enum RaffleState {
+        OPEN, //0
         CALCULATING //1
+
     }
 
     /*State variables */
@@ -64,8 +63,14 @@ contract Raffle is VRFConsumerBaseV2Plus{
     event RaffleEnterPlayer(address indexed player);
     event WinnerPicked(address indexed winner);
 
-    constructor(uint256 entryFee,uint256 interval,address vrfCoordinator,bytes32 gasLane,
-    uint256 subscribId, uint32 callBackGasLimit ) VRFConsumerBaseV2Plus(vrfCoordinator){
+    constructor(
+        uint256 entryFee,
+        uint256 interval,
+        address vrfCoordinator,
+        bytes32 gasLane,
+        uint256 subscribId,
+        uint32 callBackGasLimit
+    ) VRFConsumerBaseV2Plus(vrfCoordinator) {
         i_entryFee = entryFee;
         i_interval = interval;
         i_keyHash = gasLane;
@@ -78,21 +83,20 @@ contract Raffle is VRFConsumerBaseV2Plus{
 
     function enterRaffle() public payable {
         // require(msg.value >= i_entryFee,"Ooops!The amount sent is not equal to Entry Fee"); --- Strings are not gas - efficient. So method2:
-        if(msg.value < i_entryFee){
+        if (msg.value < i_entryFee) {
             revert Raffle__NotEnoughEthSent();
         }
 
-        if(s_raffleState != RaffleState.OPEN){
+        if (s_raffleState != RaffleState.OPEN) {
             revert Raffle__LotteryEntryClosed();
         }
         s_players.push(payable(msg.sender));
         emit RaffleEnterPlayer(msg.sender);
     }
 
-
     //When should the winner be picked? And how to do it automatically?
     /**
-     * @dev This function is called by the chainlink nodes to 
+     * @dev This function is called by the chainlink nodes to
      * see if its time to choose winner for lottery.
      * The following should be true in order for upKeepNeeded to be true:
      * 1. The defined interval should have passed between raffle runs
@@ -104,40 +108,42 @@ contract Raffle is VRFConsumerBaseV2Plus{
      * @return - ignored
      */
     //would want to discuss this;
-    function checkUpKeep(bytes memory /* checkData */) public view returns (bool upkeepNeeded, bytes memory /* performData */)
+    function checkUpKeep(bytes memory /* checkData */ )
+        public
+        view
+        returns (bool upkeepNeeded, bytes memory /* performData */ )
     {
         bool timeHasPassed = ((block.timestamp - s_lastTimeStamp) < i_interval);
         bool isOpen = s_raffleState == RaffleState.OPEN;
         bool hasBalance = address(this).balance > 0;
         bool hasPlayers = s_players.length > 0;
         upkeepNeeded = timeHasPassed && isOpen && hasBalance && hasPlayers;
-        return (upkeepNeeded,"0x0");    
+        return (upkeepNeeded, "0x0");
     }
-    
+
     //How to write a function? CIE -- Checks, Internal Contract state changes, External Interactions(Interacting with a different contract,etc.)
-    function performUpkeep(bytes calldata /* performData */) external {
+    function performUpkeep(bytes calldata /* performData */ ) external {
         (bool upkeepNeeded,) = checkUpKeep("");
-        if(!upkeepNeeded){
-            revert Raffle__upkeepNotNeeded(address(this).balance,s_players.length,uint256(s_raffleState));//Params are passed to give more info about revert
+        if (!upkeepNeeded) {
+            revert Raffle__upkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState)); //Params are passed to give more info about revert
         }
-        
+
         s_raffleState = RaffleState.CALCULATING;
 
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient.RandomWordsRequest({
-                keyHash: i_keyHash,
-                subId: i_subscriptionId,
-                requestConfirmations: REQUEST_CONFIRMATIONS,
-                callbackGasLimit: i_callBackGasLimit,
-                numWords: NUM_WORDS,
-                // Set nativePayment to true to pay for VRF requests with Sepolia ETH instead of LINK
-                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
+            keyHash: i_keyHash,
+            subId: i_subscriptionId,
+            requestConfirmations: REQUEST_CONFIRMATIONS,
+            callbackGasLimit: i_callBackGasLimit,
+            numWords: NUM_WORDS,
+            // Set nativePayment to true to pay for VRF requests with Sepolia ETH instead of LINK
+            extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
         });
 
-       s_vrfCoordinator.requestRandomWords(request);
-
+        s_vrfCoordinator.requestRandomWords(request);
     }
 
-    function fulfillRandomWords(uint256 /*requestId */, uint256[] memory randomWords) internal virtual override {
+    function fulfillRandomWords(uint256, /*requestId */ uint256[] memory randomWords) internal virtual override {
         //First comes checks
 
         //Internal state changes
@@ -152,14 +158,17 @@ contract Raffle is VRFConsumerBaseV2Plus{
 
         //External Interactions
         (bool success,) = recentWinner.call{value: address(this).balance}("");
-        if(!success){
+        if (!success) {
             revert Raffle__WinnerTransactionFailed();
         }
     }
 
-
     //Getter Functions
     function getEntryFee() external view returns (uint256) {
         return i_entryFee;
+    }
+
+    function getRaffleState() external view returns (RaffleState){
+        return s_raffleState;
     }
 }
