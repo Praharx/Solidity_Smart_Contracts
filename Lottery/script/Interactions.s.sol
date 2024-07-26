@@ -7,13 +7,13 @@ import {VRFCoordinatorV2_5Mock} from
     "lib/chainlink-brownie-contracts/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
 
 
-contract CreateSunscription is Script{
+contract CreateSubscription is Script{
     function createSubscriptionUsingConifg() public returns (uint256, address)  {
         HelperConfig helperConfig = new HelperConfig();
         address vrfCoordinator = helperConfig.getConfig().vrfCoordinator;
 
-        
-
+        (uint256 subId,) = createSubscription(vrfCoordinator);
+        return (subId,vrfCoordinator);
         //create subscriptions
     }
 
