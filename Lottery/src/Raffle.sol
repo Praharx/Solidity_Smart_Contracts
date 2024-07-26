@@ -55,7 +55,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     bytes32 private immutable i_keyHash;
     uint256 private immutable i_subscriptionId;
     uint256 private s_lastTimeStamp;
-    address payable[] s_players;
+    address payable[] private s_players;
     address private s_recentWinner;
     RaffleState private s_raffleState;
 
@@ -113,7 +113,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
         view
         returns (bool upkeepNeeded, bytes memory /* performData */ )
     {
-        bool timeHasPassed = ((block.timestamp - s_lastTimeStamp) < i_interval);
+        bool timeHasPassed = ((block.timestamp - s_lastTimeStamp) >= i_interval);
         bool isOpen = s_raffleState == RaffleState.OPEN;
         bool hasBalance = address(this).balance > 0;
         bool hasPlayers = s_players.length > 0;
@@ -170,5 +170,9 @@ contract Raffle is VRFConsumerBaseV2Plus {
 
     function getRaffleState() external view returns (RaffleState){
         return s_raffleState;
+    }
+
+    function getPlayer(uint256 indexOfPlayer) external view returns (address){
+        return s_players[indexOfPlayer];
     }
 }

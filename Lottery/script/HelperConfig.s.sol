@@ -39,7 +39,7 @@ contract HelperConfig is CodeConstants, Script {
         if (networkConfigs[chainId].vrfCoordinator != address(0)) {
             return networkConfigs[chainId];
         } else if (chainId == LOCAL_CHAIN_ID) {
-            //getOrCreateLocalEthConfig
+            return getOrCreateAnvilEthConfig();
         } else {
             revert HelperConfig__InvalidChainId();
         }
