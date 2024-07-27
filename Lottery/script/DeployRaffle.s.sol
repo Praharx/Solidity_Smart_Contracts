@@ -13,11 +13,12 @@ contract DeployRaffle is Script {
         HelperConfig helperConfig = new HelperConfig();
         HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
 
-        if(config.subscribId == 0){
+        if (config.subscribId == 0) {
             //create subscription.
             CreateSubscription subscriptionContract = new CreateSubscription();
             (config.subscribId, config.vrfCoordinator) = subscriptionContract.createSubscription(config.vrfCoordinator);
-            
+
+            //fund it
         }
 
         vm.startBroadcast();

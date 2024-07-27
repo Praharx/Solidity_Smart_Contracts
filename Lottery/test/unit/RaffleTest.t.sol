@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {Test,console} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {DeployRaffle} from "script/DeployRaffle.s.sol";
 import {Raffle} from "src/Raffle.sol";
 import {HelperConfig} from "../../script/HelperConfig.s.sol";
- 
-contract RaffleTest is Test{
+
+contract RaffleTest is Test {
     Raffle public raffle;
     HelperConfig public helperConfig;
 
@@ -20,13 +20,13 @@ contract RaffleTest is Test{
     uint256 subscribId;
     uint32 callBackGasLimit;
 
-     /*Events */
+    /*Events */
     event RaffleEnterPlayer(address indexed player);
     event WinnerPicked(address indexed winner);
 
-    function setUp() external{
+    function setUp() external {
         DeployRaffle deployer = new DeployRaffle();
-        (raffle,helperConfig) = deployer.deployContract();
+        (raffle, helperConfig) = deployer.deployContract();
         HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
         //Why should I do this? -- to be used later in tests.
         entryFee = config.entryFee;
@@ -36,15 +36,15 @@ contract RaffleTest is Test{
         subscribId = config.subscribId;
         callBackGasLimit = config.callBackGasLimit;
 
-        vm.deal(PLAYER,STARTING_BALANCE);
+        vm.deal(PLAYER, STARTING_BALANCE);
     }
 
-    function testRaffleStateinitialisesWithOpen() public view{
-        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN );
+    function testRaffleStateinitialisesWithOpen() public view {
+        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
     }
 
     //////////// ENTER RAFFLE /////////////
-    function testIfRaffleRevertsIfEntryFeeNotSufficient() public{
+    function testIfRaffleRevertsIfEntryFeeNotSufficient() public {
         //Arrange
         vm.prank(PLAYER);
         //Act/Assert
@@ -52,7 +52,7 @@ contract RaffleTest is Test{
         raffle.enterRaffle();
     }
 
-    function testRaffleRecordsPlayersWhenTheyEnter() public{
+    function testRaffleRecordsPlayersWhenTheyEnter() public {
         //Arrange
         vm.prank(PLAYER);
         //Act
@@ -62,24 +62,24 @@ contract RaffleTest is Test{
         assert(playerRecorded == PLAYER);
     }
 
-    function testEmitWhenPlayerEntersRaffle() public{
+    function testEmitWhenPlayerEntersRaffle() public {
         //Arrange
         vm.prank(PLAYER);
         //Act
-        vm.expectEmit(true,false,false,false, address(raffle));
+        vm.expectEmit(true, false, false, false, address(raffle));
         emit RaffleEnterPlayer(PLAYER);
         //assert
-        raffle.enterRaffle{value:entryFee}();
+        raffle.enterRaffle{value: entryFee}();
     }
 
-    function testDontAllowPlayersToEnterWhileRaffleIsCalculating() public{
+    function testDontAllowPlayersToEnterWhileRaffleIsCalculating() public {
         //Arrange
         vm.prank(PLAYER);
         raffle.enterRaffle{value: entryFee}();
         vm.warp(block.timestamp + interval + 1);
         vm.roll(block.number + 1);
         raffle.performUpkeep("");
-        
+
         //Act/Assert
         vm.expectRevert(Raffle.Raffle__LotteryEntryClosed.selector);
         vm.prank(PLAYER);
