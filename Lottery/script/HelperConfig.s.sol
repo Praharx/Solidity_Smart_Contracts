@@ -2,8 +2,7 @@
 pragma solidity 0.8.19;
 
 import {Script} from "forge-std/Script.sol";
-import {VRFCoordinatorV2_5Mock} from
-    "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
+import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
 import {LinkToken} from "../test/mock/LinkToken.sol";
 
 abstract contract CodeConstants {
@@ -81,7 +80,7 @@ contract HelperConfig is CodeConstants, Script {
             gasLane: 0x8077df514608a09f83e4e8d300645594e5d7234665448ba83f51a50f842bd3d9,
             subscribId: 0,
             callBackGasLimit: 500000,
-            link:address(linkToken)
+            link: address(linkToken)
         });
         return localNetworkConfigs;
     }
