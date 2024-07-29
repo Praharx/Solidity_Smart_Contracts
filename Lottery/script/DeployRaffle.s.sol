@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import {Script,console} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {Raffle} from "src/Raffle.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {CreateSubscription, FundSubscription, AddConsumer} from "./Interactions.s.sol";
@@ -18,14 +18,15 @@ contract DeployRaffle is Script {
         if (config.subscribId == 0) {
             //create subscription.
             CreateSubscription subscriptionContract = new CreateSubscription();
-            (config.subscribId, config.vrfCoordinator) = subscriptionContract.createSubscription(config.vrfCoordinator);
+            (config.subscribId, config.vrfCoordinator) =
+                subscriptionContract.createSubscription(config.vrfCoordinator, config.account);
 
             //fund it
             FundSubscription fundSubscription = new FundSubscription();
-            fundSubscription.fundSubscription(config.vrfCoordinator, config.subscribId, config.link);
+            fundSubscription.fundSubscription(config.vrfCoordinator, config.subscribId, config.link, config.account);
         }
 
-        vm.startBroadcast();
+        vm.startBroadcast(config.account);
         Raffle raffle = new Raffle(
             config.entryFee,
             config.interval,
@@ -37,8 +38,8 @@ contract DeployRaffle is Script {
         vm.stopBroadcast();
 
         AddConsumer addConsumer = new AddConsumer();
-        addConsumer.addConsumer(address(raffle), config.vrfCoordinator, config.subscribId);
-        console.log("/////////", helperConfig.getConfig().subscribId,config.subscribId);
+        addConsumer.addConsumer(address(raffle), config.vrfCoordinator, config.subscribId, config.account);
+        console.log("/////////", helperConfig.getConfig().subscribId, config.subscribId);
         return (raffle, helperConfig);
     }
 }
