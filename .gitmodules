@@ -13,3 +13,6 @@
 [submodule "ERC-20_Token/lib/openzepplin-contracts"]
 	path = ERC-20_Token/lib/openzepplin-contracts
 	url = https://github.com/openzepplin/openzepplin-contracts
+[submodule "NFTS/lib/openzeppelin-contracts"]
+	path = NFTS/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
