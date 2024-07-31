@@ -16,3 +16,6 @@
 [submodule "NFTS/lib/openzeppelin-contracts"]
 	path = NFTS/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "NFTS/lib/foundry-devops"]
+	path = NFTS/lib/foundry-devops
+	url = https://github.com/ChainAccelOrg/foundry-devops
