@@ -5,6 +5,7 @@ libs = ["lib"]
 fs_permissions = [
     { access = "read", path = "./broadcast" },
     { access = "read", path = "./reports" },
+    { access = "read", path = "./img/"}
 ]
 remappings=["@openzepplin/contracts=lib/openzepplin-contracts/contracts"]
 
