@@ -1,6 +1,27 @@
 //SPDX-License-Identifier:MIT
 pragma solidity ^0.8.18;
 
+// Layout of Contract:
+// version
+// imports
+// errors
+// interfaces, libraries, contracts
+// Type declarations
+// State variables
+// Events
+// Modifiers
+// Functions
+
+// Layout of Functions:
+// constructor
+// receive function (if exists)
+// fallback function (if exists)
+// external
+// public
+// internal
+// private
+// view & pure functions
+
 import {ERC20,ERC20Burnable} from "@openzepplin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Ownable} from "@openzepplin/contracts/access/Ownable.sol";
 
@@ -11,7 +32,7 @@ import {Ownable} from "@openzepplin/contracts/access/Ownable.sol";
  * Minting: Algorithmic
  * Relative Stability: Pegged to USD
  * 
- * This contract is governed by DSCEngine.This as ERC20 implementation of the stablecoin system.
+ * This contract is governed by CSDEngine.This as ERC20 implementation of the stablecoin system.
  */
 
 contract DStableCoin is ERC20Burnable,Ownable {
