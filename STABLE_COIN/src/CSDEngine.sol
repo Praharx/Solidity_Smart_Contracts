@@ -52,24 +52,23 @@ contract CSDEngine is ReentrancyGuard {
     error CSDEngine__TokenNotAllowed();
     error CSDEngine__CollateralDepositFailed();
     error CSDEngine__MintRequestFailed();
-    error CSDEngine__HEALTHFACTORDANGER(uint userHealthFactor);
+    error CSDEngine__HEALTHFACTORDANGER(uint256 userHealthFactor);
 
     ////////////////// State variables //////////////////
     mapping(address token => address priceFeed) private s_priceFeeds; // TokentoPriceFeed
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
-    mapping(address user => uint amountCSDMinted) private s_CSDMinted;
+    mapping(address user => uint256 amountCSDMinted) private s_CSDMinted;
     address[] private s_CollateralTokens;
-    uint private constant ADDITIONAL_PRECISION = 1e10;
-    uint private constant PRECISION_NORMALIZE = 1e18;
-    uint private constant LIQUIDATION_THRESHOLD = 50;
-    uint private constant LIQUIDATION_PRECISION = 100;
-    uint private constant MIN_HEALTH_FACTOR = 1;
+    uint256 private constant ADDITIONAL_PRECISION = 1e10;
+    uint256 private constant PRECISION_NORMALIZE = 1e18;
+    uint256 private constant LIQUIDATION_THRESHOLD = 50;
+    uint256 private constant LIQUIDATION_PRECISION = 100;
+    uint256 private constant MIN_HEALTH_FACTOR = 1;
 
     DStableCoin private immutable i_csd;
 
-
     ////////////////// Events //////////////////
-    event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint indexed amount);
+    event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint256 indexed amount);
 
     ////////////////// Modifiers //////////////////
     modifier MoreThanZero(uint256 amount) {
@@ -119,10 +118,10 @@ contract CSDEngine is ReentrancyGuard {
     {
         s_collateralDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
         emit CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
-        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender,address(this),amountCollateral);
-        if (!success){
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), amountCollateral);
+        if (!success) {
             revert CSDEngine__CollateralDepositFailed();
-        }   
+        }
     }
 
     /**
@@ -130,12 +129,12 @@ contract CSDEngine is ReentrancyGuard {
      * @param amountCsdToMint The amount of Csd coins to mint.
      * @notice the requester must have more collateral than the minimum threshold.
      */
-    function mintCsd(uint amountCsdToMint) external MoreThanZero(amountCsdToMint) nonReentrant {
+    function mintCsd(uint256 amountCsdToMint) external MoreThanZero(amountCsdToMint) nonReentrant {
         s_CSDMinted[msg.sender] += amountCsdToMint;
         // if they minted too much $100Eth but minted $150 CSD
         _revertIfHealthFactorIsBroken(msg.sender);
-        bool minted = i_csd.mint(msg.sender,amountCsdToMint);
-        if(!minted){
+        bool minted = i_csd.mint(msg.sender, amountCsdToMint);
+        if (!minted) {
             revert CSDEngine__MintRequestFailed();
         }
     }
@@ -152,48 +151,52 @@ contract CSDEngine is ReentrancyGuard {
 
     //////////////////  Private & Internal View Functions //////////////////
 
-    function _getAccountInfo(address user) private view returns (uint totalCsdMinted, uint totalCollateralValueInUsd){
+    function _getAccountInfo(address user)
+        private
+        view
+        returns (uint256 totalCsdMinted, uint256 totalCollateralValueInUsd)
+    {
         totalCsdMinted = s_CSDMinted[user];
         totalCollateralValueInUsd = getAccountCollateralValue(user);
     }
 
     /**
-     * 
-     * returns how close a user is to liquidation 
+     *
+     * returns how close a user is to liquidation
      * If a user gets this below 1, they can be liquidated.
      */
-    function _healthFactor(address user) private view returns (uint) {
+    function _healthFactor(address user) private view returns (uint256) {
         // CSD Minted
         // total collateral value
-        (uint totalCsdMinted, uint totalCollateralValueInUsd) = _getAccountInfo(user);
-        uint CollateralAdjustedThresholdPrecision = (totalCollateralValueInUsd * LIQUIDATION_THRESHOLD)/LIQUIDATION_PRECISION;
+        (uint256 totalCsdMinted, uint256 totalCollateralValueInUsd) = _getAccountInfo(user);
+        uint256 CollateralAdjustedThresholdPrecision =
+            (totalCollateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
-        return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE)/totalCsdMinted;
+        return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE) / totalCsdMinted;
     }
 
-    function _revertIfHealthFactorIsBroken(address user) internal view{
-        uint userHealthFactor = _healthFactor(user);
-        if(userHealthFactor < MIN_HEALTH_FACTOR){
+    function _revertIfHealthFactorIsBroken(address user) internal view {
+        uint256 userHealthFactor = _healthFactor(user);
+        if (userHealthFactor < MIN_HEALTH_FACTOR) {
             revert CSDEngine__HEALTHFACTORDANGER(userHealthFactor);
         }
-
     }
 
     //////////////////  Public & External Functions //////////////////
-    function getAccountCollateralValue(address user) public view returns (uint totalCollateralValueInUsd){
+    function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         // loop throug collateral tokens ---> get how much user has deposited ---> map that to usd
-        for (uint i=0; i< s_CollateralTokens.length; i++){
+        for (uint256 i = 0; i < s_CollateralTokens.length; i++) {
             address token = s_CollateralTokens[i];
-            uint amount = s_collateralDeposited[user][token];
-            totalCollateralValueInUsd += getUsdValue(token,amount);
+            uint256 amount = s_collateralDeposited[user][token];
+            totalCollateralValueInUsd += getUsdValue(token, amount);
         }
         return totalCollateralValueInUsd;
     }
 
-    function getUsdValue(address token, uint amount) public view returns (uint){
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (,int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.latestRoundData();
 
-        return((uint(price)* ADDITIONAL_PRECISION)* amount)/PRECISION_NORMALIZE;
+        return ((uint256(price) * ADDITIONAL_PRECISION) * amount) / PRECISION_NORMALIZE;
     }
 }
