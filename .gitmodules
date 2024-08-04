@@ -22,3 +22,6 @@
 [submodule "STABLE_COIN/lib/openzepplin-contracts"]
 	path = STABLE_COIN/lib/openzepplin-contracts
 	url = https://github.com/openzepplin/openzepplin-contracts
+[submodule "STABLE_COIN/lib/chainlink-brownie-contracts"]
+	path = STABLE_COIN/lib/chainlink-brownie-contracts
+	url = https://github.com/smartcontractkit/chainlink-brownie-contracts

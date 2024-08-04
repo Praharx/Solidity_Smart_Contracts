@@ -43,6 +43,7 @@ pragma solidity ^0.8.18;
 import {DStableCoin} from "./DStableCoin.sol";
 import {ReentrancyGuard} from "@openzepplin/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "@openzepplin/contracts/token/ERC20/IERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract CSDEngine is ReentrancyGuard {
     ////////////////// Errors //////////////////
@@ -50,15 +51,25 @@ contract CSDEngine is ReentrancyGuard {
     error CSDEngine__PriceFeedArrayLengthAndTokenAddressArrayLengthMismatch();
     error CSDEngine__TokenNotAllowed();
     error CSDEngine__CollateralDepositFailed();
+    error CSDEngine__MintRequestFailed();
+    error CSDEngine__HEALTHFACTORDANGER(uint userHealthFactor);
 
     ////////////////// State variables //////////////////
     mapping(address token => address priceFeed) private s_priceFeeds; // TokentoPriceFeed
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
+    mapping(address user => uint amountCSDMinted) private s_CSDMinted;
+    address[] private s_CollateralTokens;
+    uint private constant ADDITIONAL_PRECISION = 1e10;
+    uint private constant PRECISION_NORMALIZE = 1e18;
+    uint private constant LIQUIDATION_THRESHOLD = 50;
+    uint private constant LIQUIDATION_PRECISION = 100;
+    uint private constant MIN_HEALTH_FACTOR = 1;
 
     DStableCoin private immutable i_csd;
 
-     ////////////////// Events //////////////////
-     event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint indexed amount);
+
+    ////////////////// Events //////////////////
+    event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint indexed amount);
 
     ////////////////// Modifiers //////////////////
     modifier MoreThanZero(uint256 amount) {
@@ -86,6 +97,7 @@ contract CSDEngine is ReentrancyGuard {
         //For example Eth/ usd, btc/ usd
         for (uint256 i = 0; i < tokenAddresses.length; i++) {
             s_priceFeeds[tokenAddresses[i]] = priceFeedAddresses[i];
+            s_CollateralTokens.push(tokenAddresses[i]);
         }
 
         i_csd = DStableCoin(csdAddress);
@@ -110,10 +122,23 @@ contract CSDEngine is ReentrancyGuard {
         bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender,address(this),amountCollateral);
         if (!success){
             revert CSDEngine__CollateralDepositFailed();
-        }
+        }   
     }
 
-    function mintCsd() external {}
+    /**
+     * follows CIE
+     * @param amountCsdToMint The amount of Csd coins to mint.
+     * @notice the requester must have more collateral than the minimum threshold.
+     */
+    function mintCsd(uint amountCsdToMint) external MoreThanZero(amountCsdToMint) nonReentrant {
+        s_CSDMinted[msg.sender] += amountCsdToMint;
+        // if they minted too much $100Eth but minted $150 CSD
+        _revertIfHealthFactorIsBroken(msg.sender);
+        bool minted = i_csd.mint(msg.sender,amountCsdToMint);
+        if(!minted){
+            revert CSDEngine__MintRequestFailed();
+        }
+    }
 
     function RedeemCollateralForCSD() external {}
 
@@ -124,4 +149,51 @@ contract CSDEngine is ReentrancyGuard {
     function liqudate() external {}
 
     function getHealthFactor() external {}
+
+    //////////////////  Private & Internal View Functions //////////////////
+
+    function _getAccountInfo(address user) private view returns (uint totalCsdMinted, uint totalCollateralValueInUsd){
+        totalCsdMinted = s_CSDMinted[user];
+        totalCollateralValueInUsd = getAccountCollateralValue(user);
+    }
+
+    /**
+     * 
+     * returns how close a user is to liquidation 
+     * If a user gets this below 1, they can be liquidated.
+     */
+    function _healthFactor(address user) private view returns (uint) {
+        // CSD Minted
+        // total collateral value
+        (uint totalCsdMinted, uint totalCollateralValueInUsd) = _getAccountInfo(user);
+        uint CollateralAdjustedThresholdPrecision = (totalCollateralValueInUsd * LIQUIDATION_THRESHOLD)/LIQUIDATION_PRECISION;
+
+        return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE)/totalCsdMinted;
+    }
+
+    function _revertIfHealthFactorIsBroken(address user) internal view{
+        uint userHealthFactor = _healthFactor(user);
+        if(userHealthFactor < MIN_HEALTH_FACTOR){
+            revert CSDEngine__HEALTHFACTORDANGER(userHealthFactor);
+        }
+
+    }
+
+    //////////////////  Public & External Functions //////////////////
+    function getAccountCollateralValue(address user) public view returns (uint totalCollateralValueInUsd){
+        // loop throug collateral tokens ---> get how much user has deposited ---> map that to usd
+        for (uint i=0; i< s_CollateralTokens.length; i++){
+            address token = s_CollateralTokens[i];
+            uint amount = s_collateralDeposited[user][token];
+            totalCollateralValueInUsd += getUsdValue(token,amount);
+        }
+        return totalCollateralValueInUsd;
+    }
+
+    function getUsdValue(address token, uint amount) public view returns (uint){
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (,int256 price,,,) = priceFeed.latestRoundData();
+
+        return((uint(price)* ADDITIONAL_PRECISION)* amount)/PRECISION_NORMALIZE;
+    }
 }
