@@ -18,14 +18,14 @@ contract testCSD is Test {
 
     address public USER = makeAddr("user");
     uint256 AMOUNT_COLLATERAL = 10 ether;
-    uint public constant STARTING_ERC20_BALANCE = 10 ether;
+    uint256 public constant STARTING_ERC20_BALANCE = 10 ether;
 
     function setUp() public {
         deployer = new DeployCSD();
         (dStableCoin, csd_engine, config) = deployer.run();
         (wethUsdPriceFeed,, weth,,) = config.activeNetworkConfig();
 
-        ERC20Mock(weth).mint(USER,STARTING_ERC20_BALANCE);
+        ERC20Mock(weth).mint(USER, STARTING_ERC20_BALANCE);
     }
 
     ///////////////////// PRICE TESTS /////////////////////

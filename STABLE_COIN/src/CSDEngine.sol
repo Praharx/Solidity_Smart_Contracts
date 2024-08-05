@@ -51,6 +51,8 @@ contract CSDEngine is ReentrancyGuard {
     error CSDEngine__PriceFeedArrayLengthAndTokenAddressArrayLengthMismatch();
     error CSDEngine__TokenNotAllowed();
     error CSDEngine__CollateralDepositFailed();
+    error CSDEngine__CollateralRedeemFailed();
+    error CSDEngine__TransactionFailed();
     error CSDEngine__MintRequestFailed();
     error CSDEngine__HEALTHFACTORDANGER(uint256 userHealthFactor);
 
@@ -69,6 +71,7 @@ contract CSDEngine is ReentrancyGuard {
 
     ////////////////// Events //////////////////
     event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint256 indexed amount);
+    event CollateralRedeemed(address indexed sender,address indexed tokenAddress, uint indexed amountCollateral);
 
     ////////////////// Modifiers //////////////////
     modifier MoreThanZero(uint256 amount) {
@@ -103,7 +106,20 @@ contract CSDEngine is ReentrancyGuard {
     }
 
     ////////////////// External Functions //////////////////
-    function depositCollateralAndMintCSD() external {}
+
+    /**
+     * @param tokenCollateralAddress The address of token to deposit as collateral
+     * @param amountCollateral The amount of collateral you want to dposited
+     * @param amountCsdToMint The amount of CSD to be minted.
+     */
+    function depositCollateralAndMintCSD(
+        address tokenCollateralAddress,
+        uint256 amountCollateral,
+        uint256 amountCsdToMint
+    ) external {
+        depositCollateral(tokenCollateralAddress, amountCollateral);
+        mintCsd(amountCsdToMint);
+    }
 
     /**
      * @notice follows CEI
@@ -111,7 +127,7 @@ contract CSDEngine is ReentrancyGuard {
      * @param amountCollateral The amount of collateral to deposit.
      */
     function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
-        external
+        public
         MoreThanZero(amountCollateral)
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
@@ -129,7 +145,7 @@ contract CSDEngine is ReentrancyGuard {
      * @param amountCsdToMint The amount of Csd coins to mint.
      * @notice the requester must have more collateral than the minimum threshold.
      */
-    function mintCsd(uint256 amountCsdToMint) external MoreThanZero(amountCsdToMint) nonReentrant {
+    function mintCsd(uint256 amountCsdToMint) public MoreThanZero(amountCsdToMint) nonReentrant {
         s_CSDMinted[msg.sender] += amountCsdToMint;
         // if they minted too much $100Eth but minted $150 CSD
         _revertIfHealthFactorIsBroken(msg.sender);
@@ -139,11 +155,44 @@ contract CSDEngine is ReentrancyGuard {
         }
     }
 
-    function RedeemCollateralForCSD() external {}
+    /**
+     * @param tokenAddress the address of token to be redeemed.
+     * @param amountCollateral the amount to redeem.
+     * @param amountCSDtoBurn the amount of CSD coins to burn to redeem collateral.
+     * This function burns CSD and redeems underlying collateral in one transaction.
+     */
+    function RedeemCollateralForCSD(address tokenAddress, uint amountCollateral, uint amountCSDtoBurn) external {
+        redeemCollateral(tokenAddress,amountCollateral);
+        burnCsd(amountCSDtoBurn);
+        // check for health factor is already done in redeemCollateral function.
+    }
 
-    function redeemCollateral() external {}
+    // in order to redeem collateral:
+    //1. health factor must be greater than 1 after the collateral is pulled out.
+    function redeemCollateral(address tokenAddress, uint256 amountCollateral)
+        public
+        MoreThanZero(amountCollateral)
+        nonReentrant
+    {
+        s_collateralDeposited[msg.sender][tokenAddress] -= amountCollateral;
+        emit CollateralRedeemed(msg.sender, tokenAddress, amountCollateral);
 
-    function burnCsd() external {}
+        bool success = IERC20(tokenAddress).transfer(msg.sender, amountCollateral); // here the contract is transferring to the msg.sender that's the reason we're using TRANSFER
+        if(!success){
+            revert CSDEngine__CollateralRedeemFailed();
+        }
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
+
+    function burnCsd(uint amount) public MoreThanZero(amount) {
+        s_CSDMinted[msg.sender] -= amount;
+        bool success = i_csd.transferFrom(msg.sender, address(this),amount);
+        if(!success){
+            revert CSDEngine__TransactionFailed();
+        }
+        i_csd.burn(amount); 
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     function liqudate() external {}
 
