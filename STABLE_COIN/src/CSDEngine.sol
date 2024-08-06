@@ -227,8 +227,6 @@ contract CSDEngine is ReentrancyGuard {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    function getHealthFactor() external {}
-
     //////////////////  Private & Internal View Functions //////////////////
 
     function _getAccountInfo(address user)
@@ -274,6 +272,8 @@ contract CSDEngine is ReentrancyGuard {
         return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE) / totalCsdMinted;
     }
 
+    
+
     function _revertIfHealthFactorIsBroken(address user) internal view {
         uint256 userHealthFactor = _healthFactor(user);
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
@@ -304,5 +304,9 @@ contract CSDEngine is ReentrancyGuard {
         (,int256 price,,,) = priceFeed.latestRoundData();
         // ($10e18 * 1e18)/($2000e8*1e10)
         return (usdAmountInWei*PRECISION_NORMALIZE)/(uint(price)*ADDITIONAL_PRECISION);
+    }
+
+    function getAccountInfo(address user) public view returns (uint256 totalCsdMinted, uint256 totalCollateralValueInUsd){
+        (totalCsdMinted,totalCollateralValueInUsd) = _getAccountInfo(user);
     }
 }
