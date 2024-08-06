@@ -56,6 +56,7 @@ contract CSDEngine is ReentrancyGuard {
     error CSDEngine__MintRequestFailed();
     error CSDEngine__HEALTHFACTORDANGER(uint256 userHealthFactor);
     error HealthFactorOk();
+    error HealthFactorNOTIMPROVED();
 
     ////////////////// State variables //////////////////
     mapping(address token => address priceFeed) private s_priceFeeds; // TokentoPriceFeed
@@ -73,7 +74,7 @@ contract CSDEngine is ReentrancyGuard {
 
     ////////////////// Events //////////////////
     event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint256 indexed amount);
-    event CollateralRedeemed(address indexed sender, address indexed tokenAddress, uint256 indexed amountCollateral);
+    event CollateralRedeemed(address indexed redeemedFrom,address indexed redeemedTo, address indexed tokenAddress, uint256  amountCollateral);
 
     ////////////////// Modifiers //////////////////
     modifier MoreThanZero(uint256 amount) {
@@ -176,23 +177,12 @@ contract CSDEngine is ReentrancyGuard {
         MoreThanZero(amountCollateral)
         nonReentrant
     {
-        s_collateralDeposited[msg.sender][tokenAddress] -= amountCollateral;
-        emit CollateralRedeemed(msg.sender, tokenAddress, amountCollateral);
-
-        bool success = IERC20(tokenAddress).transfer(msg.sender, amountCollateral); // here the contract is transferring to the msg.sender that's the reason we're using TRANSFER
-        if (!success) {
-            revert CSDEngine__CollateralRedeemFailed();
-        }
+        _redeemCollateral(msg.sender,msg.sender,tokenAddress,amountCollateral);
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     function burnCsd(uint256 amount) public MoreThanZero(amount) {
-        s_CSDMinted[msg.sender] -= amount;
-        bool success = i_csd.transferFrom(msg.sender, address(this), amount);
-        if (!success) {
-            revert CSDEngine__TransactionFailed();
-        }
-        i_csd.burn(amount);
+        _burnCsd(msg.sender,msg.sender,amount);
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
@@ -227,6 +217,14 @@ contract CSDEngine is ReentrancyGuard {
         uint collateralBonus = (tokenAmountFromDebtCovered*LIQUIDATION_BONUS)/LIQUIDATION_PRECISION;
         uint totalCollateralToRedeem = tokenAmountFromDebtCovered + collateralBonus;
 
+        _redeemCollateral(user,msg.sender,collateral,totalCollateralToRedeem);
+        _burnCsd(user,msg.sender,debtToCover);
+
+        uint EndingHealthFactoruser = _healthFactor(user);
+        if(InitialHealthFactorUser == EndingHealthFactoruser){
+            revert HealthFactorNOTIMPROVED();
+        }
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     function getHealthFactor() external {}
@@ -240,6 +238,25 @@ contract CSDEngine is ReentrancyGuard {
     {
         totalCsdMinted = s_CSDMinted[user];
         totalCollateralValueInUsd = getAccountCollateralValue(user);
+    }
+
+    function _redeemCollateral(address from,address to,address tokenAddress,uint amountCollateral) private{
+         s_collateralDeposited[from][tokenAddress] -= amountCollateral;
+        emit CollateralRedeemed(from,to, tokenAddress, amountCollateral);
+
+        bool success = IERC20(tokenAddress).transfer(to, amountCollateral); // here the contract is transferring to the msg.sender that's the reason we're using TRANSFER
+        if (!success) {
+            revert CSDEngine__CollateralRedeemFailed();
+        }
+    }
+
+    function _burnCsd(address onBehalfOf, address CsdFrom, uint amountCsdToBurn) private {
+        s_CSDMinted[onBehalfOf] -=  amountCsdToBurn;
+        bool success = i_csd.transferFrom(CsdFrom, address(this), amountCsdToBurn);
+        if (!success) {
+            revert CSDEngine__TransactionFailed();
+        }
+        i_csd.burn(amountCsdToBurn);
     }
 
     /**
