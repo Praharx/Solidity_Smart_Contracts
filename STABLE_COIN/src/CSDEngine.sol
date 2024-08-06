@@ -55,6 +55,7 @@ contract CSDEngine is ReentrancyGuard {
     error CSDEngine__TransactionFailed();
     error CSDEngine__MintRequestFailed();
     error CSDEngine__HEALTHFACTORDANGER(uint256 userHealthFactor);
+    error HealthFactorOk();
 
     ////////////////// State variables //////////////////
     mapping(address token => address priceFeed) private s_priceFeeds; // TokentoPriceFeed
@@ -65,13 +66,14 @@ contract CSDEngine is ReentrancyGuard {
     uint256 private constant PRECISION_NORMALIZE = 1e18;
     uint256 private constant LIQUIDATION_THRESHOLD = 50;
     uint256 private constant LIQUIDATION_PRECISION = 100;
-    uint256 private constant MIN_HEALTH_FACTOR = 1;
+    uint256 private constant MIN_HEALTH_FACTOR = 1e18;
+    uint256 private constant LIQUIDATION_BONUS = 10; // 10% of the
 
     DStableCoin private immutable i_csd;
 
     ////////////////// Events //////////////////
     event CollateralDeposited(address indexed sender, address indexed tokenAddress, uint256 indexed amount);
-    event CollateralRedeemed(address indexed sender,address indexed tokenAddress, uint indexed amountCollateral);
+    event CollateralRedeemed(address indexed sender, address indexed tokenAddress, uint256 indexed amountCollateral);
 
     ////////////////// Modifiers //////////////////
     modifier MoreThanZero(uint256 amount) {
@@ -159,10 +161,10 @@ contract CSDEngine is ReentrancyGuard {
      * @param tokenAddress the address of token to be redeemed.
      * @param amountCollateral the amount to redeem.
      * @param amountCSDtoBurn the amount of CSD coins to burn to redeem collateral.
-     * This function burns CSD and redeems underlying collateral in one transaction.
+     * This function burns CSD and redeems underlying collateral in one transactio
      */
-    function RedeemCollateralForCSD(address tokenAddress, uint amountCollateral, uint amountCSDtoBurn) external {
-        redeemCollateral(tokenAddress,amountCollateral);
+    function RedeemCollateralForCSD(address tokenAddress, uint256 amountCollateral, uint256 amountCSDtoBurn) external {
+        redeemCollateral(tokenAddress, amountCollateral);
         burnCsd(amountCSDtoBurn);
         // check for health factor is already done in redeemCollateral function.
     }
@@ -178,23 +180,54 @@ contract CSDEngine is ReentrancyGuard {
         emit CollateralRedeemed(msg.sender, tokenAddress, amountCollateral);
 
         bool success = IERC20(tokenAddress).transfer(msg.sender, amountCollateral); // here the contract is transferring to the msg.sender that's the reason we're using TRANSFER
-        if(!success){
+        if (!success) {
             revert CSDEngine__CollateralRedeemFailed();
         }
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    function burnCsd(uint amount) public MoreThanZero(amount) {
+    function burnCsd(uint256 amount) public MoreThanZero(amount) {
         s_CSDMinted[msg.sender] -= amount;
-        bool success = i_csd.transferFrom(msg.sender, address(this),amount);
-        if(!success){
+        bool success = i_csd.transferFrom(msg.sender, address(this), amount);
+        if (!success) {
             revert CSDEngine__TransactionFailed();
         }
-        i_csd.burn(amount); 
+        i_csd.burn(amount);
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    function liqudate() external {}
+    /**
+     *
+     * @param collateral the erc20 token collateral that is to br liqudated.
+     * @param user the address of user whose health factor broke i.e went below MIN_HEALTH_FACTOR and has to be liqudated.
+     * @param debtToCover the amount of CSD to burn to improve user's health factor.
+     * @notice You can partially liquidate a user.
+     * @notice The liquidator gets a liquidation bonus for buying user's funds.
+     * @notice The normal working of this function assumes the protocal will be 200% overcollateralized.
+     * @notice A known bug is when the collateral value gets plummeted to 100% or less the protocol won't be able to incentive the liquidator.
+     */
+    function liqudate(address collateral, address user, uint256 debtToCover)
+        external
+        MoreThanZero(debtToCover)
+        nonReentrant
+    {
+        // need to check the health factor
+        uint InitialHealthFactorUser = _healthFactor(user);
+        if (InitialHealthFactorUser > MIN_HEALTH_FACTOR){
+            revert HealthFactorOk();
+        }
+
+        // Burn the CSD coins and take away the collateral.
+        // Bad User: $140 ETH, $100 CSD
+        // DebtToCover = $100 CSD == ??? ETH
+        uint tokenAmountFromDebtCovered = getTokenAmountFromUsd(collateral,debtToCover);
+        // And give them a 10% bonus.
+        // So we are giving 110 WETH for $100 CSD.
+
+        uint collateralBonus = (tokenAmountFromDebtCovered*LIQUIDATION_BONUS)/LIQUIDATION_PRECISION;
+        uint totalCollateralToRedeem = tokenAmountFromDebtCovered + collateralBonus;
+
+    }
 
     function getHealthFactor() external {}
 
@@ -247,5 +280,12 @@ contract CSDEngine is ReentrancyGuard {
         (, int256 price,,,) = priceFeed.latestRoundData();
 
         return ((uint256(price) * ADDITIONAL_PRECISION) * amount) / PRECISION_NORMALIZE;
+    }
+
+    function getTokenAmountFromUsd(address token,uint usdAmountInWei) public view returns (uint){ // wei is smallest unit of eth.
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (,int256 price,,,) = priceFeed.latestRoundData();
+        // ($10e18 * 1e18)/($2000e8*1e10)
+        return (usdAmountInWei*PRECISION_NORMALIZE)/(uint(price)*ADDITIONAL_PRECISION);
     }
 }
