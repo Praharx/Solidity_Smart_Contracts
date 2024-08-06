@@ -266,13 +266,15 @@ contract CSDEngine is ReentrancyGuard {
         // CSD Minted
         // total collateral value
         (uint256 totalCsdMinted, uint256 totalCollateralValueInUsd) = _getAccountInfo(user);
-        uint256 CollateralAdjustedThresholdPrecision =
-            (totalCollateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
-
-        return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE) / totalCsdMinted;
+       _calculateHealthFactor(totalCsdMinted,totalCollateralValueInUsd);
     }
 
-    
+    function _calculateHealthFactor(uint totalCSDMinted, uint totalCollateralAmountInUsd) internal pure returns (uint){
+        if (totalCSDMinted == 0) return type(uint).max;
+        uint CollateralAdjustedThresholdPrecision = (totalCollateralAmountInUsd * LIQUIDATION_THRESHOLD)/LIQUIDATION_PRECISION;
+
+        return (CollateralAdjustedThresholdPrecision * PRECISION_NORMALIZE)/ totalCSDMinted;
+    }
 
     function _revertIfHealthFactorIsBroken(address user) internal view {
         uint256 userHealthFactor = _healthFactor(user);
@@ -308,5 +310,53 @@ contract CSDEngine is ReentrancyGuard {
 
     function getAccountInfo(address user) public view returns (uint256 totalCsdMinted, uint256 totalCollateralValueInUsd){
         (totalCsdMinted,totalCollateralValueInUsd) = _getAccountInfo(user);
+    }
+
+    function calculateHealthFactor(uint totalCsdMinted,uint totalCollateralValueInUsd) public pure returns (uint){
+        return _calculateHealthFactor(totalCsdMinted,totalCollateralValueInUsd);
+    }
+
+    function getCollateralBalanceOfUser(address user,address token) external view returns (uint){
+        return s_collateralDeposited[user][token];
+    }
+
+    function getPrecision() external pure returns (uint256) {
+        return PRECISION_NORMALIZE;
+    }
+
+    function getAdditionalFeedPrecision() external pure returns (uint256) {
+        return ADDITIONAL_PRECISION;
+    }
+
+    function getLiquidationThreshold() external pure returns (uint256) {
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    function getLiquidationBonus() external pure returns (uint256) {
+        return LIQUIDATION_BONUS;
+    }
+
+    function getLiquidationPrecision() external pure returns (uint256) {
+        return LIQUIDATION_PRECISION;
+    }
+
+    function getMinHealthFactor() external pure returns (uint256) {
+        return MIN_HEALTH_FACTOR;
+    }
+
+    function getCollateralTokens() external view returns (address[] memory) {
+        return s_CollateralTokens;
+    }
+
+    function getDsc() external view returns (address) {
+        return address(i_csd);
+    }
+
+    function getCollateralTokenPriceFeed(address token) external view returns (address) {
+        return s_priceFeeds[token];
+    }
+
+    function getHealthFactor(address user) external view returns (uint256) {
+        return _healthFactor(user);
     }
 }
