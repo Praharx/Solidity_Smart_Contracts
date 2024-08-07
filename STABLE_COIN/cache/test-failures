@@ -1,1 +1,1 @@
-testCanDepositCollateralAndRetrieveAccountInfo
+invariant_ProtocolMustHaveMoreTotalCollateralThanTotalSupply
